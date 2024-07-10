@@ -1,8 +1,8 @@
-;;; zathura-sync-theme.el --- Synchronize Zathura's look and feel with Emacs 
+;;; zathura-sync-theme.el --- Synchronize Zathura's look and feel with Emacs
 
 ;; Copyright (C) 2024 Amol Vaidya
 
-;; Author: Amol Vaidya  
+;; Author: Amol Vaidya
 ;; Version: 20240710.1000
 ;; Keywords: faces
 ;; URL: https://github.com/amolv06/zathura-sync-theme
@@ -14,16 +14,18 @@
 ;; https://blog.akaisuisei.org/communicating-with-zathura-via-dbus.html
 ;; written by mafty.
 
+;;; Code:
 (require 'cl-lib)
+(require 'dbus)
 
-(defcustom zathura-theme-config "~/.config/zathura/theme"
+(defcustom zathura-sync-theme-config-file "~/.config/zathura/theme"
   "Config location to put colors into."
   :type 'file
   :group 'zathura)
 
-(defun zathura-write-config ()
-  (interactive)
-  (with-temp-file zathura-theme-config
+(defun zathura-sync-theme--write-config ()
+  "Overwrites theme config."
+  (with-temp-file zathura-sync-theme-config-file
     (insert "# synced with emacs theme by zathura-sync-theme"
             "\nset recolor-darkcolor \\" (face-attribute 'default :foreground)
             "\nset recolor-lightcolor \\" (face-attribute 'default :background)
@@ -33,14 +35,15 @@
             "\nset statusbar-fg \\" (face-attribute 'default :foreground nil 'default)
             "\nset recolor true")))
 
-(defun zathura-set (&rest _args)
+(defun zathura-sync-theme--set (&rest _args)
+  "Writes theme config and sends Zathura D-Bus command to refresh it."
   (let ((zathura-services (cl-remove-if-not (lambda (x) (cl-search "zathura" x))
 					    (dbus-list-names :session)))
 	(zathura-path "/org/pwmt/zathura")
 	(zathura-interface "org.pwmt.zathura")
 	(zathura-method "SourceConfig"))
 
-    (zathura-write-config)
+    (zathura-sync-theme--write-config)
     (dolist (svc zathura-services)
       (dbus-call-method-asynchronously :session
                                        svc
@@ -51,19 +54,19 @@
 
 ;;;###autoload
 (define-minor-mode zathura-sync-theme-mode
-  "Synchronize the look and feel of Zathura with Emacs"
+  "Synchronize the look and feel of Zathura with Emacs."
   :global t
   :group 'zathura
   :init-value nil
   :lighter "Zathura"
   (cond
    (zathura-sync-theme-mode
-    (zathura-write-config)
-    (advice-add 'enable-theme :after #'zathura-set))
+    (zathura-sync-theme--write-config)
+    (advice-add 'enable-theme :after #'zathura-sync-theme--set))
 
    (t
-    (delete-file zathura-theme-config)
-    (advice-remove 'enable-theme #'zathura-set))))
+    (delete-file zathura-sync-theme-config-file)
+    (advice-remove 'enable-theme #'zathura-sync-theme--set))))
 
 (provide 'zathura-sync-theme)
 ;;; zathura-sync-theme.el ends here
